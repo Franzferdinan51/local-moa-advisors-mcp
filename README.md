@@ -1,0 +1,31 @@
+# Local MoA Advisors MCP
+
+This stdio MCP gives an LM Studio chat model a bounded MoA pipeline:
+
+- Advisor 1: Planner
+- Advisor 2: Skeptic / technical critic
+- Final aggregator: synthesizes one finished answer
+
+The original LM Studio chat model remains the acting model. It calls
+`moa_advice` and receives the aggregator's finished answer as the tool result.
+
+## Configuration
+
+The LM Studio MCP entry starts `index.js` with Node. By default it reads the
+current LM Studio URL and API key from `~/.openclaw/openclaw.json`, so an old
+machine address is not pinned in the MCP entry. It supports these overrides:
+
+- `LM_STUDIO_URL`: OpenAI-compatible LM Studio base URL.
+- `LM_API_TOKEN`: bearer token for an authenticated LM Studio server.
+- `LM_STUDIO_MODEL`: model ID to call for advisor passes. If omitted, the server queries `/models` and uses a loaded model when reported, otherwise the first returned model.
+- `MOA_ADVISOR_MAX_TOKENS`: advisor response cap; defaults to `500`.
+- `MOA_AGGREGATOR_MAX_TOKENS`: final synthesized response cap; defaults to `600`.
+- `MOA_REQUEST_TIMEOUT_MS`: per-request timeout; defaults to `45000`.
+
+## Use
+
+Call `moa_advice` only for hard tasks. Pass the task and focused context. It
+makes exactly three sequential inference calls—two advisors and one aggregator—
+against the same selected model, never parallel model loads. Only one MoA
+request is allowed at a time, and stalled LM Studio requests are aborted.
+Advisors and the aggregator do not receive MCP tool schemas and cannot act.

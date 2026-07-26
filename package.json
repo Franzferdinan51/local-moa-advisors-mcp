@@ -1,0 +1,20 @@
+{
+  "name": "local-moa-advisors-mcp",
+  "version": "1.0.0",
+  "description": "Local Mixture-of-Agents advisor MCP for LM Studio",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Franzferdinan51/local-moa-advisors-mcp.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  }
+}
