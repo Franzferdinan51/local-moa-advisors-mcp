@@ -8,8 +8,10 @@ const baseUrl = (
 ).replace(/\/$/, '');
 const lmStudioApiBase = baseUrl.endsWith('/v1') ? baseUrl.slice(0, -3) : baseUrl;
 const apiKey = process.env.LM_API_TOKEN || '';
-const maxAdvisorTokens = Number.parseInt(process.env.MOA_ADVISOR_MAX_TOKENS || '500', 10);
-const maxAggregatorTokens = Number.parseInt(process.env.MOA_AGGREGATOR_MAX_TOKENS || '600', 10);
+// Leave enough room for a complete final answer.  The MCP may be given a long
+// task/context, but output limits are generated tokens, not context tokens.
+const maxAdvisorTokens = Number.parseInt(process.env.MOA_ADVISOR_MAX_TOKENS || '400', 10);
+const maxAggregatorTokens = Number.parseInt(process.env.MOA_AGGREGATOR_MAX_TOKENS || '1400', 10);
 const requestTimeoutMs = Number.parseInt(process.env.MOA_REQUEST_TIMEOUT_MS || '45000', 10);
 let activeRun = false;
 
