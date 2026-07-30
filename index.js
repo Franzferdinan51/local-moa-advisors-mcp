@@ -8,7 +8,6 @@ const baseUrl = (
 ).replace(/\/$/, '');
 const lmStudioApiBase = baseUrl.endsWith('/v1') ? baseUrl.slice(0, -3) : baseUrl;
 const apiKey = process.env.LM_API_TOKEN || '';
-const configuredModel = process.env.LM_STUDIO_MODEL || '';
 const maxAdvisorTokens = Number.parseInt(process.env.MOA_ADVISOR_MAX_TOKENS || '500', 10);
 const maxAggregatorTokens = Number.parseInt(process.env.MOA_AGGREGATOR_MAX_TOKENS || '600', 10);
 const requestTimeoutMs = Number.parseInt(process.env.MOA_REQUEST_TIMEOUT_MS || '45000', 10);
@@ -53,12 +52,10 @@ function textFromCompletion(data) {
   return typeof text === 'string' && text.trim() ? text.trim() : 'No usable advisor response returned.';
 }
 
-async function resolveModel(explicitModel) {
-  if (explicitModel) return explicitModel;
-  if (configuredModel) return configuredModel;
-
-  // LM Studio's OpenAI-compatible endpoint lists all available models, not
-  // necessarily the loaded one. Its native endpoint exposes loaded instances.
+async function resolveLoadedModel() {
+  // The MoA must use the model already loaded in LM Studio. The
+  // OpenAI-compatible endpoint lists every installed model, so it cannot be
+  // used for model selection.
   const loadedResponse = await fetchWithTimeout(
     `${lmStudioApiBase}/api/v1/models`,
     { headers: requestHeaders() },
@@ -71,19 +68,10 @@ async function resolveModel(explicitModel) {
       .find((instance) => typeof instance?.id === 'string' && instance.id.trim());
     if (loadedInstance) return loadedInstance.id;
   }
-
-  const response = await fetchWithTimeout(
-    `${baseUrl}/models`,
-    { headers: requestHeaders() },
-    Math.min(requestTimeoutMs, 10000),
-  );
-  if (!response.ok) throw new Error(`LM Studio model discovery failed (${response.status}). Check LM_STUDIO_URL and LM_API_TOKEN in LM Studio's mcp.json.`);
-  const data = await response.json();
-  const models = Array.isArray(data?.data) ? data.data : [];
-  const loaded = models.find((model) => model?.loaded === true || model?.state === 'loaded');
-  const selected = loaded || models[0];
-  if (!selected?.id) throw new Error('LM Studio returned no selectable model. Load a model and start its local server first.');
-  return selected.id;
+  if (!loadedResponse.ok) {
+    throw new Error(`LM Studio loaded-model discovery failed (${loadedResponse.status}). Check LM_STUDIO_URL and LM_API_TOKEN in LM Studio's mcp.json.`);
+  }
+  throw new Error('No model is currently loaded in LM Studio. Load a chat model, then retry.');
 }
 
 async function askAdvisor({ role, task, context, model, temperature }) {
@@ -161,7 +149,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {
           task: { type: 'string', description: 'The full task or question to analyze.' },
           context: { type: 'string', description: 'Relevant facts, constraints, errors, or excerpts. Keep it focused.' },
-          model: { type: 'string', description: 'Optional LM Studio model ID. Omit to use LM_STUDIO_MODEL or auto-discovery.' },
         },
         required: ['task'],
       },
@@ -189,7 +176,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   activeRun = true;
   try {
-    const model = await resolveModel(typeof args.model === 'string' ? args.model.trim() : '');
+    const model = await resolveLoadedModel();
     const advisors = [];
     for (const role of roles) {
       advisors.push(await askAdvisor({ role, task, context, model, temperature: 0.55 }));

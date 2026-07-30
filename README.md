@@ -16,7 +16,7 @@ environment. It does not read or depend on OpenClaw configuration.
 
 - `LM_STUDIO_URL`: OpenAI-compatible LM Studio base URL.
 - `LM_API_TOKEN`: bearer token for an authenticated LM Studio server.
-- `LM_STUDIO_MODEL`: model ID to call for advisor passes. If omitted, the server queries LM Studio's native `/api/v1/models` endpoint and uses the first loaded instance; it falls back to the OpenAI-compatible `/v1/models` endpoint only when needed.
+- The MCP always queries LM Studio's native `/api/v1/models` endpoint and uses the currently loaded model instance. It never reads a model ID from configuration or falls back to an arbitrary installed model.
 - `MOA_ADVISOR_MAX_TOKENS`: advisor response cap; defaults to `500`.
 - `MOA_AGGREGATOR_MAX_TOKENS`: final synthesized response cap; defaults to `600`.
 - `MOA_REQUEST_TIMEOUT_MS`: per-request timeout; defaults to `45000`.
