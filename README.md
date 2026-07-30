@@ -11,13 +11,12 @@ The original LM Studio chat model remains the acting model. It calls
 
 ## Configuration
 
-The LM Studio MCP entry starts `index.js` with Node. By default it reads the
-current LM Studio URL and API key from `~/.openclaw/openclaw.json`, so an old
-machine address is not pinned in the MCP entry. It supports these overrides:
+The LM Studio MCP entry starts `index.js` with Node and reads only its own MCP
+environment. It does not read or depend on OpenClaw configuration.
 
 - `LM_STUDIO_URL`: OpenAI-compatible LM Studio base URL.
 - `LM_API_TOKEN`: bearer token for an authenticated LM Studio server.
-- `LM_STUDIO_MODEL`: model ID to call for advisor passes. If omitted, the server queries `/models` and uses a loaded model when reported, otherwise the first returned model.
+- `LM_STUDIO_MODEL`: model ID to call for advisor passes. If omitted, the server queries LM Studio's native `/api/v1/models` endpoint and uses the first loaded instance; it falls back to the OpenAI-compatible `/v1/models` endpoint only when needed.
 - `MOA_ADVISOR_MAX_TOKENS`: advisor response cap; defaults to `500`.
 - `MOA_AGGREGATOR_MAX_TOKENS`: final synthesized response cap; defaults to `600`.
 - `MOA_REQUEST_TIMEOUT_MS`: per-request timeout; defaults to `45000`.

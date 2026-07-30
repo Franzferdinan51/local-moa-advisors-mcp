@@ -2,31 +2,12 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-
-function readOpenClawLmStudioConfig() {
-  try {
-    const configPath = process.env.OPENCLAW_CONFIG_PATH || join(homedir(), '.openclaw', 'openclaw.json');
-    const config = JSON.parse(readFileSync(configPath, 'utf8'));
-    const provider = config?.models?.providers?.lmstudio || {};
-    return {
-      baseUrl: typeof provider.baseUrl === 'string' ? provider.baseUrl.trim() : '',
-      apiKey: typeof provider.apiKey === 'string' ? provider.apiKey.trim() : '',
-    };
-  } catch {
-    return { baseUrl: '', apiKey: '' };
-  }
-}
-
-const openClawLmStudio = readOpenClawLmStudioConfig();
 const baseUrl = (
   process.env.LM_STUDIO_URL
-  || openClawLmStudio.baseUrl
   || 'http://127.0.0.1:1234/v1'
 ).replace(/\/$/, '');
-const apiKey = process.env.LM_API_TOKEN || openClawLmStudio.apiKey || '';
+const lmStudioApiBase = baseUrl.endsWith('/v1') ? baseUrl.slice(0, -3) : baseUrl;
+const apiKey = process.env.LM_API_TOKEN || '';
 const configuredModel = process.env.LM_STUDIO_MODEL || '';
 const maxAdvisorTokens = Number.parseInt(process.env.MOA_ADVISOR_MAX_TOKENS || '500', 10);
 const maxAggregatorTokens = Number.parseInt(process.env.MOA_AGGREGATOR_MAX_TOKENS || '600', 10);
@@ -76,12 +57,27 @@ async function resolveModel(explicitModel) {
   if (explicitModel) return explicitModel;
   if (configuredModel) return configuredModel;
 
+  // LM Studio's OpenAI-compatible endpoint lists all available models, not
+  // necessarily the loaded one. Its native endpoint exposes loaded instances.
+  const loadedResponse = await fetchWithTimeout(
+    `${lmStudioApiBase}/api/v1/models`,
+    { headers: requestHeaders() },
+    Math.min(requestTimeoutMs, 10000),
+  );
+  if (loadedResponse.ok) {
+    const data = await loadedResponse.json();
+    const loadedInstance = (Array.isArray(data?.models) ? data.models : [])
+      .flatMap((model) => Array.isArray(model?.loaded_instances) ? model.loaded_instances : [])
+      .find((instance) => typeof instance?.id === 'string' && instance.id.trim());
+    if (loadedInstance) return loadedInstance.id;
+  }
+
   const response = await fetchWithTimeout(
     `${baseUrl}/models`,
     { headers: requestHeaders() },
     Math.min(requestTimeoutMs, 10000),
   );
-  if (!response.ok) throw new Error(`LM Studio model discovery failed (${response.status}). Set LM_STUDIO_MODEL in mcp.json.`);
+  if (!response.ok) throw new Error(`LM Studio model discovery failed (${response.status}). Check LM_STUDIO_URL and LM_API_TOKEN in LM Studio's mcp.json.`);
   const data = await response.json();
   const models = Array.isArray(data?.data) ? data.data : [];
   const loaded = models.find((model) => model?.loaded === true || model?.state === 'loaded');
