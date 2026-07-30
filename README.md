@@ -8,6 +8,9 @@ This stdio MCP gives an LM Studio chat model a bounded MoA pipeline:
 
 The original LM Studio chat model remains the acting model. It calls
 `moa_advice` and receives the aggregator's finished answer as the tool result.
+Use `moa_status` first when diagnosing a reported offline state. It checks
+LM Studio's native API and the currently loaded model without running an
+inference request.
 
 ## Configuration
 
@@ -23,7 +26,8 @@ environment. It does not read or depend on OpenClaw configuration.
 
 ## Use
 
-Call `moa_advice` only for hard tasks. Pass the task and focused context. It
+Call `moa_status` to verify the orchestrator/LLM path, then call `moa_advice`
+only for hard tasks. Pass the task and focused context. It
 makes exactly three sequential inference calls—two advisors and one aggregator—
 against the same selected model, never parallel model loads. Only one MoA
 request is allowed at a time, and stalled LM Studio requests are aborted.

@@ -54,7 +54,7 @@ function textFromCompletion(data) {
   return typeof text === 'string' && text.trim() ? text.trim() : 'No usable advisor response returned.';
 }
 
-async function resolveLoadedModel() {
+async function getLoadedModels() {
   // The MoA must use the model already loaded in LM Studio. The
   // OpenAI-compatible endpoint lists every installed model, so it cannot be
   // used for model selection.
@@ -65,14 +65,20 @@ async function resolveLoadedModel() {
   );
   if (loadedResponse.ok) {
     const data = await loadedResponse.json();
-    const loadedInstance = (Array.isArray(data?.models) ? data.models : [])
+    return (Array.isArray(data?.models) ? data.models : [])
       .flatMap((model) => Array.isArray(model?.loaded_instances) ? model.loaded_instances : [])
-      .find((instance) => typeof instance?.id === 'string' && instance.id.trim());
-    if (loadedInstance) return loadedInstance.id;
+      .map((instance) => instance?.id)
+      .filter((id) => typeof id === 'string' && id.trim());
   }
   if (!loadedResponse.ok) {
     throw new Error(`LM Studio loaded-model discovery failed (${loadedResponse.status}). Check LM_STUDIO_URL and LM_API_TOKEN in LM Studio's mcp.json.`);
   }
+  return [];
+}
+
+async function resolveLoadedModel() {
+  const loadedModels = await getLoadedModels();
+  if (loadedModels[0]) return loadedModels[0];
   throw new Error('No model is currently loaded in LM Studio. Load a chat model, then retry.');
 }
 
@@ -155,10 +161,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['task'],
       },
     },
+    {
+      name: 'moa_status',
+      description: 'Check whether LM Studio, the loaded model, and the local MoA orchestrator are actually online. This is a read-only health check and does not run inference.',
+      inputSchema: { type: 'object', properties: {} },
+    },
   ],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  if (request.params.name === 'moa_status') {
+    try {
+      const loadedModels = await getLoadedModels();
+      const status = {
+        orchestrator: loadedModels.length > 0 ? 'online' : 'offline',
+        llm: loadedModels.length > 0 ? 'online' : 'offline',
+        loadedModels,
+        endpoint: baseUrl,
+        busy: activeRun,
+        pipeline: loadedModels.length > 0 ? 'ready' : 'blocked: no model loaded',
+      };
+      return { content: [{ type: 'text', text: JSON.stringify(status, null, 2) }] };
+    } catch (error) {
+      return { content: [{ type: 'text', text: JSON.stringify({ orchestrator: 'offline', llm: 'offline', endpoint: baseUrl, error: error.message }, null, 2) }], isError: true };
+    }
+  }
   if (request.params.name !== 'moa_advice') {
     return { content: [{ type: 'text', text: `Unknown tool: ${request.params.name}` }], isError: true };
   }
@@ -185,7 +212,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     const aggregate = await aggregateAdvice({ task, context, model, advisors });
     const text = [
-      `Local MoA aggregate (model: ${model}; 2 advisors + 1 aggregator; sequential).`,
+      `Local MoA status: orchestrator/llm online; planner online; skeptic online; aggregator online. Model: ${model}. Pipeline: 2 advisors + 1 aggregator, sequential.`,
       aggregate,
     ].join('\n');
     return { content: [{ type: 'text', text }] };
